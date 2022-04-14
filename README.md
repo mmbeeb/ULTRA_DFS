@@ -1,6 +1,6 @@
 # ULTRA_DFS
 
-I created ULTRA DFS in 2015.  (Last modification was 14/08/15.)
+I created ULTRA DFS in 2015.  (Last modification was 28/06/2016.)
 
 It was an attempt to combine MMFS and real DFS but never caught on.  Thus it was never fully debugged.
 
