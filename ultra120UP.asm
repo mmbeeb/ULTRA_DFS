@@ -3,11 +3,11 @@
 	\\ Compiler: BeebAsm V1.08
 	\\ by Martin Mather
 
-	_MMC_DEVICE_ = 'M'
+	_MMC_DEVICE_ = 'U'
 
 	sys=120
 	ultra = TRUE
 
 	INCLUDE "dfs.asm"
 
-	SAVE "ULTRA120.ROM", &8000, &C000
+	SAVE "U120UP.ROM", &8000, &C000

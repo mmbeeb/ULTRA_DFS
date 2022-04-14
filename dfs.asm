@@ -3,6 +3,11 @@
 	\\ Compiler: BeebAsm V1.08
 	\\ Disassembly by Martin Mather
 
+	\ Only Ultra 2.26 can be compiled without FDC code.
+IF sys<>226 OR NOT(ultra)
+	_mm_=FALSE
+	;_SWRAM_=FALSE
+ENDIF
 
 IF sys=224
 	\ DFS 2.24 for MASTER
@@ -21,11 +26,11 @@ IF sys=120 AND NOT(ultra)
 ENDIF
 
 IF ultra
-	INCLUDE "mmc_eq.asm"
+	INCLUDE "MMC_eq.asm"
 ENDIF
 
 	ORG &8000
-	\GUARD &C000
+	GUARD &C000
 
 .langentry
 IF sys=120 AND NOT(ultra)
@@ -41,7 +46,7 @@ ELIF sys=120
 	JMP NFS_SERVICE_ENTRY		;1.20
 ELIF sys=224
 	JMP SRAM_SERVICE_ENTRY		;2.24
-ELSE
+ELSE;sys=226
 	JMP BANNER_SERVICE_ENTRY	;2.26
 ENDIF
 
@@ -193,17 +198,19 @@ if sys=226 or (sys=120 and ultra)
 	INCLUDE "tubehost230.asm"	;TUBE HOST 2.30
 endif
 
-if sys<>120 and not(ultra)
-	INCLUDE "sram.asm"		;SRAM 1.04/1.05
-endif
 
 IF ultra
-	INCLUDE "mmc.asm"
+	INCLUDE "MMC.asm"
+ELSE
+	\ (To save space the following not included in Ultra.)	
+
+IF sys<>120
+	INCLUDE "sram.asm"		;SRAM 1.04/1.05
 ENDIF
 
-if sys=226
+IF sys=226
 	\ This bit is for the Model B+.
-
+	\ It shows the total RAM including sideways RAMS.
 .BANNER_SERVICE_ENTRY
 	CMP #&01			;X=this rom no.
 	BNE SERVICE2B_AlternativeBanner	;A=service type
@@ -221,11 +228,7 @@ if sys=226
 	PLA 
 
 .Label_BEDD_sramserventry
-if ultra
-	JMP DFS_SERVICE_ENTRY
-else
 	JMP SRAM_SERVICE_ENTRY
-endif
 
 .SERVICE2B_AlternativeBanner
 	CMP #&2B			;'Display alternative banner'
@@ -368,7 +371,8 @@ endif
 	STA PagedRomSelector
 	JMP Label_BF33_reentry
 }
-endif
+ENDIF
+ENDIF
 
 	\\ END OF ROM
 

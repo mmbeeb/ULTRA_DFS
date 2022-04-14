@@ -8,7 +8,6 @@
 	sys=224
 	ultra = TRUE
 
-	ultra2=FALSE
 	INCLUDE "dfs.asm"
 
 	SAVE "ULTRA224.ROM", &8000, &C000

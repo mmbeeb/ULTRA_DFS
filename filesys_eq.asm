@@ -41,6 +41,7 @@ ENDIF
 	ORG &CC
 
 .DirectoryParam		SKIP 1	;CC
+.ActiveDrv
 .CurrentDrv		SKIP 1	;CD
 .Track			SKIP 1	;CE
 .Sector			SKIP 1	;CF
@@ -51,6 +52,13 @@ IF sys=224
 	swsp=&C000-&0E00		;MASTER
 ELSE
 	swsp=0
+ENDIF
+
+	\ Pointer used by OSWORD routines.
+IF sys=120
+	OWptr=&B0
+ELSE
+	OWptr=&C7
 ENDIF
 
 	FilesX8=swsp+&0F05
@@ -113,7 +121,7 @@ ENDIF
 .LoadedCatDrive		SKIP 1	;1082 Drive Nr
 .IsDriveReady		SKIP 1	;1083 Drive Nr (8271 only)
 .VAL_1084		SKIP 1	;1084 Not used by DFS (used by Ultra for MMC_STATE)
-.VAL_1085		SKIP 1	;1085
+.VAL_1085		SKIP 1	;1085 Used by 8271 routines.
 .VAL_1086		SKIP 1	;1086
 
 	\ These are used for 8271 emulation:
@@ -128,6 +136,8 @@ ENDIF
 .OWCtlBlock		SKIP 16	;1090 OSWORD &7F style control block
 
 	\ These two blocks aren't used by DFS.
+	\ ** Ultra uses 10A0-10AF for it's VID data,
+	\ ** and 10B0-10BF as workspace.
 			;SKIP 16	;10A0 not used?
 			;SKIP 16	;10B0 not used?
 

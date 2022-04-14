@@ -228,15 +228,29 @@
 	LDA FDC_WRPARA_RDRESULT
 	RTS
 
+	\ All registers preserved.
+.FDC_WaitIfBusy2
+IF ultra
+	JSR FDC_Present
+	BCS fdcexitwait			; If no FDC
+ENDIF
+
 .FDC_WaitIfBusy
 	BIT FDC_WRCMD_RDSTATUS
 	BMI FDC_WaitIfBusy
 	BIT FDC_WRCMD_RDSTATUS
 	BMI FDC_WaitIfBusy
+
+.fdcexitwait
 	RTS
 
 .FDC_Initialise
 {
+IF ultra
+	JSR FDC_Present
+	BCS exit			; If no FDC
+ENDIF
+
 	JSR osbyteFF_startupopts
 	TXA
 	AND #&30			; Disk drive timings
@@ -255,11 +269,12 @@
 	DEX
 	BNE fdcinit_loop
 
-	STX &1085			; X=0
-	RTS
+	STX VAL_1085			; X=0
+
+.exit	RTS
 }
 
-if ultra
+IF ultra
 	\ Is FDC present?
 	\ Exit: If C=1 then FDC is present.
 .FDC_8271_CheckPresent
@@ -274,7 +289,7 @@ if ultra
 .no_fdc	CLC
 	RTS
 }
-endif
+ENDIF
 
 .fdccmdtable0
 	EQUB  &35, &0D, &02, &08, &C0, &EA	; Initialise drive timings 00

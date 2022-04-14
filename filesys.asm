@@ -35,6 +35,7 @@ ENDIF
 }
 
 	\\ Report error/start new report.
+.ReportError
 .ReportError_start
 IF ultra
 	JSR LEDS_reset			;Reset keyboard LEDs
@@ -83,6 +84,7 @@ ENDIF
 	\ **** Print String ****
 	\ String terminated if bit 7 set.
 	\ Exit: AXY preserved, C=0.
+.PrintString
 .PrtString
 {
 	STA &B3				;Print String (bit 7 terminates)
@@ -123,6 +125,7 @@ ENDIF
 .PrtFullSstop
 	LDA #&2E
 
+.PrintChrA
 .PrtChrA
 	JSR rememberAXY			;Print character
 	PHA 
@@ -167,6 +170,7 @@ ENDIF
 	RTS
 }
 
+.CopyVarsB0BA
 .copyvars
 {
 	JSR copyword
@@ -753,7 +757,7 @@ ENDIF
 	BMI print_infoline_exit
 
 .prt_InfoLineY
-	JSR rememberAXY			;Print info
+	JSR RememberAXY			;Print info
 	JSR Prt_filenameY
 	TYA 				;Save offset
 	PHA 
@@ -891,6 +895,7 @@ ENDIF
 }
 
 	\\ Remember A X and Y sub routine
+.RememberAXY
 .rememberAXY
 	PHA 				;calling subroutine exited
 	TXA 
@@ -941,6 +946,7 @@ ENDIF
 	PLA 
 	RTS
 
+.RememberXYonly
 .rememberXYonly
 	PHA 
 	TXA 
@@ -1027,6 +1033,8 @@ IF sys>120 OR ultra
 	RTS
 
 	\ Convert decimal to binary
+
+	;; for ultra you could use Param_ReadNum????
 .Decimal_TxtPtrToBinary
 {
 	JSR GSINIT_A
@@ -1105,10 +1113,12 @@ ENDIF
 	JSR PrtHexA
 	JSR PrtString
 	EQUS ")"
-IF sys>120
+
+IF sys>120 AND NOT(ultra)
 	EQUS " FM"
 ENDIF
 	EQUS 13, "Drive "
+
 	LDA CurrentDrv
 	JSR prthexLoNib			;print drv.no.
 	LDY #&0D
@@ -1306,17 +1316,17 @@ ENDIF
 	\\ Table 1 Commands
 	\\ (Can only be used when DFS is active.)
 .cmdtable1
-	EQUS "ACCESS", HI(CMD_ACCESS-1), LO(CMD_ACCESS-1),  &30+_afsp_
+	EQUS "ACCESS", HI(CMD_ACCESS-1), LO(CMD_ACCESS-1),  &32
 	EQUS "BACKUP", HI(CMD_BACKUP-1), LO(CMD_BACKUP-1), &04
 IF sys=226 OR (sys=120 AND ultra)			;Master version in OS!
 	EQUS "CLOSE", HI(CMD_CLOSE-1), LO(CMD_CLOSE-1), &00
 ENDIF
 	EQUS "COMPACT", HI(CMD_COMPACT-1), LO(CMD_COMPACT-1), &07
-	EQUS "COPY", HI(CMD_COPY-1), LO(CMD_COPY-1), _afsp_*16+4
+	EQUS "COPY", HI(CMD_COPY-1), LO(CMD_COPY-1), &24
 IF sys<>224
-	EQUS "DELETE", HI(CMD_DELETE-1), LO(CMD_DELETE-1), _fsp_
+	EQUS "DELETE", HI(CMD_DELETE-1), LO(CMD_DELETE-1), &01
 ENDIF
-	EQUS "DESTROY", HI(CMD_DESTROY-1), LO(CMD_DESTROY-1), _afsp_
+	EQUS "DESTROY", HI(CMD_DESTROY-1), LO(CMD_DESTROY-1), &02
 	EQUS "DIR", HI(CMD_DIR-1), LO(CMD_DIR-1), &06
 	EQUS "DRIVE", HI(CMD_DRIVE-1), LO(CMD_DRIVE-1), &09
 	EQUS "ENABLE", HI(CMD_ENABLE-1), LO(CMD_ENABLE-1), &00
@@ -1325,13 +1335,15 @@ IF sys=226 OR (sys=120 AND ultra)
 ENDIF
 IF sys>120 OR ultra
 	EQUS "FORM", HI(CMD_FORM-1), LO(CMD_FORM-1), &BA
+ENDIF
+IF sys>120 AND NOT(ultra)
 	EQUS "FREE", HI(CMD_FREE-1), LO(CMD_FREE-1), &07
 ENDIF
 IF sys<>224
-	EQUS "INFO", HI(CMD_INFO-1), LO(CMD_INFO-1), _afsp_
+	EQUS "INFO", HI(CMD_INFO-1), LO(CMD_INFO-1), &02
 ENDIF
 	EQUS "LIB", HI(CMD_LIB-1), LO(CMD_LIB-1), &06
-IF sys>120 OR ultra
+IF sys>120 AND NOT(ultra)
 	EQUS "MAP", HI(CMD_MAP-1), LO(CMD_MAP-1), &07
 ENDIF
 	EQUS "RENAME", HI(CMD_RENAME-1), LO(CMD_RENAME-1), &05
@@ -1339,14 +1351,24 @@ ENDIF
 IF sys>120 OR ultra
 	EQUS "VERIFY", HI(CMD_VERIFY-1), LO(CMD_VERIFY-1), &0B
 ENDIF
-	EQUS "WIPE", HI(CMD_WIPE-1), LO(CMD_WIPE-1), _afsp_
+	EQUS "WIPE", HI(CMD_WIPE-1), LO(CMD_WIPE-1), &02
 IF ultra
 	EQUB HI(UnrecCommand_Table4-1), LO(UnrecCommand_Table4-1)
 ELSE
 	EQUB HI(cmdnotintable1-1), LO(cmdnotintable1-1)
 ENDIF
 
-IF sys=120 AND NOT(ultra)
+IF ultra
+
+IF sys=224
+	cmdtable1_count = 14
+ELSE
+	cmdtable1_count = 18
+ENDIF
+
+ELSE;IF NOT(ultra)
+
+IF sys=120
 	cmdtable1_count = 14
 ELIF sys=224
 	cmdtable1_count = 16
@@ -1354,18 +1376,20 @@ ELSE;sys=226
 	cmdtable1_count = 20
 ENDIF
 
+ENDIF
+
 	\\ Table 2 Utils commands
 	\\ (Can still be used if DFS is inactive.)
 .cmdtable2
 IF sys<>224
-	EQUS "BUILD", HI(CMD_BUILD-1), LO(CMD_BUILD-1), _fsp_
+	EQUS "BUILD", HI(CMD_BUILD-1), LO(CMD_BUILD-1), &01
 	EQUS "DISC", HI(CMD_DISK-1), LO(CMD_DISK-1), &00
-	EQUS "DUMP", HI(CMD_DUMP-1), LO(CMD_DUMP-1), _fsp_
-	EQUS "LIST", HI(CMD_LIST-1), LO(CMD_LIST-1), _fsp_
-IF sys=226 OR ultra
+	EQUS "DUMP", HI(CMD_DUMP-1), LO(CMD_DUMP-1), &01
+	EQUS "LIST", HI(CMD_LIST-1), LO(CMD_LIST-1), &01
+IF sys=226 OR ultra ;AND NOT(ultra)
 	EQUS "ROMS", HI(CMD_ROMS-1), LO(CMD_ROMS-1), &0C
 ENDIF
-	EQUS "TYPE", HI(CMD_TYPE-1), LO(CMD_TYPE-1), _fsp_
+	EQUS "TYPE", HI(CMD_TYPE-1), LO(CMD_TYPE-1), &01
 ENDIF
 IF sys=224 OR ultra
 	EQUS "DISC", HI(CMD_DISK-1), LO(CMD_DISK-1), &00
@@ -1377,7 +1401,9 @@ IF sys=120 AND NOT(ultra)
 	cmdtable2_count = 5
 ELIF sys=224
 	cmdtable2_count = 1
-ELSE;sys=226
+ELIF ultra
+	cmdtable2_count = 6	;Ultra 1.20 or 2.26
+ELSE;sys=226 
 	cmdtable2_count = 6
 ENDIF
 
@@ -1412,45 +1438,22 @@ ENDIF
 IF ultra
 	\\ Table 4 DUTILS
 .cmdtable4
-	EQUS "DBOOT", HI(dboot-1), LO(dboot-1), &0D
-	EQUS "DCAT", HI(dcat-1), LO(dcat-1), &0F
-	EQUS "DDISKS", HI(ddisks-1), LO(ddisks-1), &06
-	EQUS "DFORM", HI(dform-1), LO(dform-1), &0E
-	EQUS "DFREE", HI(dfree-1), LO(dfree-1), &00
-	EQUS "DIN", HI(CMD_DIN-1), LO(CMD_DIN-1), &D6
-	EQUS "DKILL", HI(dkill-1), LO(dkill-1), &0E
-	EQUS "DLOCK", HI(dlock-1), LO(dlock-1), &0D
-	EQUS "DNEW", HI(dnew-1), LO(dnew-1), &06
-	EQUS "DONBOOT", HI(donboot-1), LO(donboot-1), &DC
-	EQUS "DOUT", HI(CMD_DOUT-1), LO(CMD_DOUT-1), &06
-	EQUS "DRECAT", HI(drecat-1), LO(drecat-1), &00
-	EQUS "DRESTORE", HI(drestore-1), LO(drestore-1), &0E
-	EQUS "DROM", HI(drom-1), LO(drom-1), &1B
-	EQUS "DUNLOCK", HI(dunlock-1), LO(dunlock-1), &0D
+	EQUS "DBOOT", HI(CMD_DBOOT-1), LO(CMD_DBOOT-1), &0D
+	EQUS "DCAT", HI(CMD_DCAT-1), LO(CMD_DCAT-1), &0E
+	EQUS "DDRIVE", HI(CMD_DDRIVE-1), LO(CMD_DDRIVE-1), &07
+	EQUS "DIN", HI(CMD_DIN-1), LO(CMD_DIN-1), &D7
+	EQUS "DOP", HI(CMD_DOP-1), LO(CMD_DOP-1), &7F
+	EQUS "DOUT", HI(CMD_DOUT-1), LO(CMD_DOUT-1), &07
 
+.cmdtable4_dabout
 	EQUS "DABOUT", HI(CMD_DABOUT-1), LO(CMD_DABOUT-1), &00
 	EQUB HI(cmdnotintable1-1), LO(cmdnotintable1-1)
 
-	cmdtable4_count = 14
+	cmdtable4_count = 6
+	cmdtable4_limit = cmdtable4_dabout - cmdtable4
 
 	cmdtab4=LO(-3)
 
-.din
-.dboot
-.dcat
-.ddisks
-.dlock
-.dunlock
-.dfree
-.dkill
-.drestore
-.dnew
-.dform
-.donboot
-.drecat
-.drom
-;.dabout
-	JMP errSYNTAX
 
 	\ Try Table 4 (DUTILS) commands.
 .UnrecCommand_Table4
@@ -1558,6 +1561,12 @@ ENDIF
 
 IF ultra
 .gotab4
+	CPX #cmdtable4_limit
+	BCS nommcinit			;If we don't need to access MMC.
+
+	JSR MMC_BEGIN2
+
+.nommcinit
 	LDA cmdtable4,X	
 	PHA
 	LDA cmdtable4+1,X
@@ -1747,14 +1756,18 @@ IF sys>120
 ENDIF
 }
 
+
+.SetCurrentDrive_Adrive
 .SetCurrentDriveA
 IF sys=120
-	JSR FDC_WaitIfBusy
+	JSR FDC_WaitIfBusy2		;Wait until floppy idle.
 ENDIF
+
 .SetCurrentDriveA_nowait
 	AND #&03
 	STA CurrentDrv
 	RTS
+
 
 .osfileFF_loadfiletoaddr
 	JSR getcatentry_afsp_BA		;Get Load Addr etc.
@@ -1764,10 +1777,12 @@ ENDIF
 IF sys>120
 	LDA #&80
 ENDIF
+
 .loadfileY
 IF sys>120
 	STA OWCtlBlock+6		;Param block FDC command
 ENDIF
+
 	STY &BA
 	LDX #&00
 	LDA &BE				;If ?BE=0 don't
@@ -1792,13 +1807,22 @@ ENDIF
 	BNE load_copyfileinfo_loop
 
 	JSR ExecAddrHi2
+
 	LDY &BA
 	JSR prt_InfoMsgY		;pt. print file info
+
 IF sys>120
+IF ultra
+	JSR MMC_LoadMemBlock
+ENDIF
 	JMP rwblock2
 ENDIF
 
 .LoadMemBlock
+IF ultra
+	JSR MMC_LoadMemBlock
+ENDIF
+
 IF sys=120
 	JSR LoadNMI1Read_TubeInit
 ELSE
@@ -1812,6 +1836,9 @@ ENDIF
 	JSR ReadFileAttribsToB0
 
 .SaveMemBlock
+IF ultra
+	JSR MMC_SaveMemBlock
+ENDIF
 IF sys=120
 	JSR LoadNMI0Write_TubeInit
 ELSE
@@ -1825,6 +1852,7 @@ IF sys>120
 .rwblock2
 ENDIF
 	JSR Setup_RW_Variables
+
 IF sys=120
 	JSR FDC_SetupRW
 	LDA #&01
@@ -1833,6 +1861,7 @@ IF sys=120
 	LDA NotTUBEOpIf0
 	BEQ LABEL_A708_exit		; If not tube txf
 
+.TUBE_RELEASE_NoCheck
 .ReleaseTUBE
 	LDA #&81			; Release tube
 	JSR TubeCode
@@ -1840,7 +1869,7 @@ IF sys=120
 	RTS
 
 .NMI_TUBE_RELEASE
-	JSR NMI_RELEASE
+	JSR NMI_RELEASE			; All registers preserved.
 
 	\ A preserved
 .TUBE_RELEASE
@@ -1852,9 +1881,10 @@ IF sys=120
 
 .LABEL_A708_exit
 	PLA
-	RTS	
+	RTS
 ELSE
 	JSR SUB_9445
+
 	LDA #&01
 	RTS
 ENDIF
@@ -2032,7 +2062,7 @@ ENDIF
 .stat_YgteqC0
 	STA (&B0),Y
 
-IF sys=120 and NOT(ultra)
+IF sys=120 AND NOT(ultra)
 	DEY
 ELSE
 	INY 				;\ diff. here
@@ -2089,12 +2119,15 @@ ENDIF
 	LDA CurrentDrv
 	RTS
 
+
 .CMD_TITLE
 {
 	JSR Param_SyntaxErrorIfNull	;** RETITLE DISK
 	JSR Set_CurDirDrv_ToDefaults
 	JSR LoadCurDrvCat		;load cat
+
 	LDX #&0B			;blank title
+
 IF sys=120
 	LDA #&20
 ELSE
@@ -2117,7 +2150,12 @@ ENDIF
 }
 
 .jmp_savecattodisk
+IF ultra
+	JSR SaveCatToDisk
+	JMP MMC_UpdateDiskTableTitle
+ELSE
 	JMP SaveCatToDisk		;save cat
+ENDIF
 
 .SetDiskTitleChr
 {
@@ -2176,7 +2214,7 @@ ENDIF
 }
 
 .fscv0_OPT
-{
+;{
 	JSR rememberAXY
 	TXA 
 	CMP #&04
@@ -2199,7 +2237,7 @@ ENDIF
 .opts01Y
 	STX FSMessagesOnIfZero		;=NOT(Y=0), I.e. FF=messages off
 	RTS
-}
+;}
 
 .SetBootOptionY
 	TYA 				;*OPT 4,Y
@@ -2483,11 +2521,70 @@ ENDIF
 }
 
 IF sys>120
-	INCLUDE "filesys_1770.asm"	;1770 code
+	INCLUDE "filesys_1770_part1.asm"	;1770 code
+
+.TUBE_CheckIfPresent
+	LDA #&EA			;Tube present?
+	LDX #&00			;X=FF if Tube present
+	LDY #&FF
+	JSR OSBYTE
+	TXA 
+	EOR #&FF
+	STA TubePresentIf0
+	RTS
+
+.NMI_CLAIM
+	LDA #&8F			;Iss.pg.rom service request
+	LDX #&0C			;service type: NMI CLAIM
+	LDY #&FF
+	JSR OSBYTE
+	STY NMI_PrevNMIOwner
+
+	INC FORCE_RESET			;?FORCE_RESET=0
+	RTS
+
+.NMI_RELEASE
+	LDY NMI_PrevNMIOwner
+	LDA #&8F
+	LDX #&0B
+	JSR OSBYTE
+
+	DEC FORCE_RESET			;?FORCE_RESET=&FF
+	RTS
+
+.TUBE_CLAIM
+{
+	PHA 
+
+.tclaim_loop
+	LDA #&C1
+	JSR TubeCode
+	BCC tclaim_loop
+
+	PLA 
+	RTS 
+}
+
+.TUBE_RELEASE
+	JSR TUBE_CheckIfPresent
+	BMI trelease_exit
+
+.TUBE_RELEASE_NoCheck
+	PHA 
+	LDA #&81
+	JSR TubeCode
+	PLA 
+
+.trelease_exit
+	RTS 
+
+	INCLUDE "filesys_1770_part2.asm"	;1770 code
 ENDIF
 
 .SaveCatToDisk
+
 IF sys=120
+
 	CLC				;Increment Cycle No
 	SED
 	LDA swsp+&0F04
@@ -2496,6 +2593,10 @@ IF sys=120
 	STA swsp+&0F04
 
 .SaveCatToDisk_DontIncCycleNo		;Ultra only
+IF ultra
+	JSR MMC_SaveCatToDisk
+ENDIF
+
 	JSR ResetFDCNMI_SetToCurrentDrv
 	JSR SetRW_Attempts
 
@@ -2510,9 +2611,10 @@ IF sys=120
 	JSR LoadNMI0Write		;defaults to &E00
 	BNE rwCatalogue			;always
 
-ELSE
+ELSE;sys>120
+
 	LDA swsp+&0F04			;Increment Cycle No
-	CLC 
+	CLC 				;(Instruction order slightly different than 1.20)
 	SED
 	ADC #&01
 	STA swsp+&0F04
@@ -2529,6 +2631,7 @@ ELSE
 .SUB_93F9_rdCatalogue_81_check
 	LDY #&81
 	BNE Label_93FF			;always
+
 ENDIF
 
 IF sys=120
@@ -2537,30 +2640,45 @@ IF sys=120
 ENDIF
 
 .CheckCurDrvCatalog
+IF sys<>224 AND ultra
+	\ Don't test if drive ready if no FDC.
+	JSR FDC_Present
+	BCS curcatdrvrdy		;If no FDC
+ENDIF
+
 IF sys=120
+
 	JSR FDC_DriveReady
-	BEQ LoadCurDrvCatalog
+	BEQ LoadCurDrvCatalog		;If drive not busy.
 
+.curcatdrvrdy
 	LDA LoadedCatDrive
-	CMP CurrentDrv
-	BEQ fdc_cmdfromtbl_exitloop
+	CMP ActiveDrv
+	BEQ fdc_cmdfromtbl_exitloop	;Goes to RTS in filesys_8271_part1
 
-ELSE
+ELSE;sys>120
+
 	LDY #&80
 
 .Label_93FF
 	BIT FDC_STATUS_COMMAND
-	BPL rwCatalogue			;If motor off
+	BPL rwCatalogue			;If motor off, i.e. drive not busy
 
+.curcatdrvrdy
 	LDA LoadedCatDrive
-	CMP CurrentDrv
+	CMP ActiveDrv
 	BNE rwCatalogue			;If cat not already loaded
 
 	RTS
+
 ENDIF
 
 .LoadCurDrvCatalog
 IF sys=120
+IF ultra
+	JSR MMC_LoadCurDrvCat
+ENDIF
+
 	JSR ResetFDCNMI_SetToCurrentDrv
 	JSR LoadNMI1Read		; defaults to &E00
 
@@ -2572,10 +2690,16 @@ IF sys=120
 	LDA CurrentDrv
 	STA LoadedCatDrive
 	JMP NMI_RELEASE_WaitFDCbusy
-ELSE
+
+ELSE;sys>120
+
 	LDY #&80
 
 .rwCatalogue
+IF ultra
+	JSR MMC_RW_Catalogue
+ENDIF
+
 	JSR OW7F_InitCtlBlock		;at &1090
 	STY OWCtlBlock+6		;command
 	LDA CurrentDrv
@@ -2586,6 +2710,7 @@ ELSE
 	STA OWCtlBlock+2
 	DEC OWCtlBlock+3
 	DEC OWCtlBlock+4
+
 	JSR SUB_9445			;1770 code
 
 	LDA CurrentDrv
@@ -2595,17 +2720,23 @@ ENDIF
 
 IF sys=120
 	INCLUDE "filesys_8271_part1.asm"
-ENDIF
-
-IF sys>120 OR ultra
+ELSE
 .CheckESCAPE
-	BIT &FF				;Check if ESCAPE presed
+	BIT &FF				;Check if ESCAPE pressed
 	BPL rts9444
 ENDIF
+
 .reportESCAPE
 	JSR osbyte7E_ack_ESCAPE2
 	JSR ReportError_start
 	EQUS &11, "Escape", 0
+
+IF sys=120 AND ultra
+.CheckESCAPE
+	BIT &FF
+	BMI reportESCAPE
+ENDIF
+
 IF sys>120 OR ultra
 .rts9444
 	RTS
@@ -2758,6 +2889,7 @@ ELSE
 	RTS
 ENDIF
 
+.PrintHex100
 .prthex_100_X
 	PHA 
 	JSR Alsr4
@@ -2880,19 +3012,33 @@ IF sys=224
 
 .SERVICE03_autoboot
 	JSR rememberAXY			;A=3 Autoboot
+
 	STY &B3				;if Y=0 then !BOOT
+
 	LDA #&7A			;Keyboard scan
 	JSR OSBYTE			;X=int.key.no
-	TXA 
-	BMI AUTOBOOT
+	TXA
+	BMI AUTOBOOT			;If no key pressed
 
 	CMP #&32			;"D" key
 	BEQ normalboot
 
 	CMP #&61			;"Z" key
+IF ultra
+	BEQ trap
+
+	CMP #&42			;"X" key
 	BNE exit_9B0E
 
-	JSR TRAP_OSBYTE_SET
+	LDX PagedRomSelector_RAMCopy	;Disable FDC
+	JSR disableFDC
+	TAX 
+	BNE normalboot			;always
+ELSE
+	BNE exit_9B0E
+ENDIF
+
+.trap	JSR TRAP_OSBYTE_SET
 
 .normalboot
 	LDA #&78			;write current keys pressed info
@@ -2905,7 +3051,7 @@ ENDIF
 
 	JSR PrtString
 IF ultra
-	EQUS "Ultra "
+	EQUS "UltraX "
 ELSE
 	EQUS "Acorn "
 ENDIF
@@ -3132,7 +3278,7 @@ IF ultra
 	JSR VID_calc_crc
 	BEQ initdfs_noreset		;If VID CRC correct.
 
-.vid_reset	
+.vid_reset
 	JSR VID_do_reset
 ENDIF
 
@@ -3147,6 +3293,7 @@ IF sys=120
 .Label_B472_fromecocode
 	PLA				; LABEL USED @ 9C63 ???
 	BNE initdfs_exit		; branch if not boot file
+
 	JSR LoadCurDrvCatalog
 ELSE
 	JSR TUBE_CheckIfPresent		;Tube present?
@@ -3200,6 +3347,20 @@ ENDIF
 	JMP OSCLI
 }
 
+
+IF sys<>224 AND ultra
+	\ Test FDC present flag
+	\ Exit: C = flag (set indicates the FDC is not present)
+	\ A, X&Y preserved.
+.FDC_Present
+	JSR RememberAXY
+	LDX PagedRomSelector_RAMCopy
+	LDA PagedROM_PrivWorkspaces,X
+	ROL A				;C=Bit 7
+	RTS
+ENDIF
+
+
 IF sys=120 and NOT(ultra)
 .CHECK_DFS
 	PHA				;Check if FDC present
@@ -3218,11 +3379,15 @@ ENDIF
 
 	LDA PagedROM_PrivWorkspaces,X
 
-IF sys=120 and NOT(ultra)
+	\ For ultra 1.20 and 2.26:
+	\ Bit 6 If set disables the ROM.
+	\ Bit 7 If set indicates the absence of the FDC.
+
+IF sys=120 OR ultra
 	ASL A
 ENDIF
 
-	BMI NO_FDC_			;If FDC not present EXIT
+	BMI NO_FDC_			;If ROM disabled (e.g. FDC not present)
 
 	PLA
 
@@ -3233,22 +3398,32 @@ ENDIF
 	BNE SERVICE02_claim_privworkspace
 
 IF sys>120 OR ultra
+
 IF sys=120
 	JSR FDC_8271_CheckPresent	;Ultra 1.20
 ELSE
 	JSR FDC_1770_CheckPresent
 ENDIF
-	LDX PagedRomSelector_RAMCopy
-	BCS serv1_claim
 
-	LDA #&80			;FDC NOT PRESENT
-	STA PagedROM_PrivWorkspaces,X	;Set bit 7
+	LDX PagedRomSelector_RAMCopy
+	BCS serv1_claim			;If FDC present
+
+	\ FDC NOT PRESENT
+IF ultra
+	JSR disableFDC
+ELSE
+	LDA #&80
+	STA PagedROM_PrivWorkspaces,X
+
 	LDA #&01			;Restore A
 	RTS 
+ENDIF
 
 .serv1_claim
 	LDA #&01			;Restore A
-ENDIF
+
+ENDIF;sys>120 OR ultra
+
 	CPY #&17			;Y=current upper limit
 	BCS serv1_exit			;already >=&17
 
@@ -3259,9 +3434,20 @@ ENDIF
 }
 ENDIF
 
+IF ultra
+	\ Set bit 7 of Private Workspace pointer (FDC not present).
+	\ Entry: X=ROM nr, Exit: A,X & Y preserved.
+.disableFDC
+	ROL PagedROM_PrivWorkspaces,X	;Preserve old value
+	SEC
+	ROR PagedROM_PrivWorkspaces,X	;Sit bit 7
+	RTS
+ENDIF
+
 .SERVICE02_claim_privworkspace
 {
 IF sys=224
+
 	\ MASTER
 	LDA PagedROM_PrivWorkspaces,X
 	CMP #&DB
@@ -3273,7 +3459,9 @@ IF sys=224
 .LABEL_9C66
 	PHY
 	STA &B1				;Set (B0) as pointer to PWSP
-ELSE	
+
+ELSE;sys<>224
+
 	\ B/B+
 	CMP #&02			;A=2 Claim private workspace
 	BNE SERVICE03_autoboot
@@ -3283,14 +3471,25 @@ ELSE
 	PHA
 	STA &B1				;Set (B0) as pointer to PWSP
 
-IF sys=120
+IF sys=120 OR ultra
 	ASL A
 	ASL PagedROM_PrivWorkspaces,X	;maintain flag bit (bit 7)
 	ROR A
-ELSE
-	LDY PagedROM_PrivWorkspaces,X
 ENDIF
+
+IF sys=226
+	LDY PagedROM_PrivWorkspaces,X	;Y=old value
+					;If ultra, Y=old value * 2
+ENDIF
+
 	STA PagedROM_PrivWorkspaces,X
+
+IF sys=226 AND ultra
+	TYA
+	LSR A
+	TAY				;Y=old value
+ENDIF
+
 ENDIF
 
 	LDA #&00
@@ -3323,7 +3522,7 @@ ENDIF
 
 	\\ If soft break and pws is empty then I must have owned sws,
 	\\ so copy it to my pws.
-	JSR SaveStaticToPrivateWorkspace	;Copy valuable data to PWSP
+	JSR SaveStaticToPrivateWorkspace	;Copy valuable data to PWSP (AXY preserved)
 
 .srv2_notsoft
 	LDA #&00
@@ -3332,6 +3531,7 @@ ENDIF
 IF sys=120
 	JSR FDC_Initialise
 ENDIF
+
 IF sys=224
 	LDA #&02
 	LDX PagedRomSelector_RAMCopy
@@ -3343,9 +3543,11 @@ ELSE
 	PLA 				;restore X & A, Y=Y+2
 	TAY
 ENDIF
+
 	INY 				;taken 2 pages for pwsp
 	INY
 }
+
 IF sys<>224
 .NO_FDC_
 	PLA
@@ -3358,31 +3560,62 @@ IF sys<>224				;MASTER version is above.
 .SERVICE03_autoboot
 {
 	JSR rememberAXY			;A=3 Autoboot
+
 	CMP #&03
 	BNE SERVICE04_unrec_command
 
 	STY &B3				;if Y=0 then !BOOT
+
 IF sys>120
 	LDA #&00			;\ Reset Drive 0 mode
 	STA &10DE			;\
 ENDIF
+
 	LDA #&7A			;Keyboard scan
 	JSR OSBYTE			;X=int.key.no
 	TXA 
-	BMI jmpAUTOBOOT
+	BMI jmpAUTOBOOT			;If no key pressed
 
 	CMP #&32			;"D" key
+
 IF sys=120
+
+IF ultra
+	BEQ srv3_normalboot
+
+	CMP #&42			;"X" key
+ENDIF
 	BNE srv3_exit
-ELSE
+IF ultra
+	LDX PagedRomSelector_RAMCopy	;Disable FDC
+	JSR disableFDC
+	TAX
+ENDIF
+
+ELSE;sys=226
+
 	BEQ srv3_normalboot
 
 	CMP #&61			;"Z" key
+IF ultra
+	BEQ trap
+
+	CMP #&42
 	BNE srv3_exit
 
-	JSR TRAP_OSBYTE_SET
-.srv3_normalboot
+	LDX PagedRomSelector_RAMCopy	;Disable FDC
+	JSR disableFDC
+	TAX
+	BNE srv3_normalboot		;always
+ELSE
+	BNE srv3_exit
 ENDIF
+
+.trap	JSR TRAP_OSBYTE_SET
+
+ENDIF
+
+.srv3_normalboot
 	LDA #&78			;write current keys pressed info
 	JSR OSBYTE
 
@@ -3470,12 +3703,6 @@ ENDIF
 .srv_exit
 	RTS
 
-	\ Pointer used by OSWORD routines.
-IF sys=120
-	OWptr=&B0
-ELSE
-	OWptr=&C7
-ENDIF
 
 .SERVICE08_unrec_OSWORD
 IF sys=224
@@ -3502,8 +3729,11 @@ ENDIF
 
 IF sys=120
 .Osword7F
-{
 	CLI				; Enable interrupts
+ENDIF
+
+IF sys=120 OR ultra
+{
 	LDY #&00
 	LDA (OWptr),Y			; Drive parameter
 	BMI osword7F_curdrv		; If -ve use current drive
@@ -3511,6 +3741,36 @@ IF sys=120
 	JSR SetCurrentDriveA
 
 .osword7F_curdrv
+}
+ENDIF
+
+IF sys=120
+{
+IF ultra
+	JSR MMC_OSWORD7F
+ENDIF
+
+if FALSE
+	pha
+	tya
+	pha
+	lda #'Q'
+	jsr OSWRCH
+	ldy #0
+.xxll	lda #'-'
+	jsr OSWRCH
+	lda (OWptr),Y
+	jsr PrtHexA
+	iny
+	cpy #16
+	bne xxll
+	jsr OSNEWL
+	pla
+	tay
+	pla
+endif
+	
+
 	JSR FDC_SetToCurrentDrv
 	INY
 	LDX #&02			; bc/bd=oswptr+1/2
@@ -3547,12 +3807,15 @@ IF sys=120
 .osword7F_result
 	JSR FDC_Wait
 	STA (OWptr),Y
-	JMP NMI_TUBE_RELEASE		;A preseved
+	JMP NMI_TUBE_RELEASE		;A preseved, Z=A=0
 }
-ELSE
+
+ELSE;sys<>120
+
 	LDX OWptr
 	LDY OWptr+1
 	JMP Osword7F_8271_Emulation	;8271 emulation
+
 ENDIF
 
 IF sys=120 AND ultra
@@ -4659,7 +4922,11 @@ ENDIF
 	LDX LastCommand			;X=table offset
 
 IF sys>120 OR ultra
+IF ultra
+	LDA #8
+ELSE
 	LDA #9				;\ Column width = 9
+ENDIF
 	STA &B8				;\ Parameters aligned
 ENDIF
 
@@ -4704,14 +4971,6 @@ ENDIF
 
 	TAY 				;Y=parameter no.
 
-IF ultra
-	BIT cmdtab_flag			;Y+=1 if DUTILS parameter
-	BPL skip			;(to allow for more than 15 parameters)
-
-	INY
-
-.skip
-ENDIF
 	LDA #&20
 	JSR prtcmd_prtchr		;print space
 
@@ -4773,22 +5032,13 @@ ELSE
 ENDIF
 
 .parametertable
-IF ultra
-	_afsp_=1
-	_fsp_=2
-	EQUB '<' OR &80, "afsp>"		;1(-1 for DUTILS)
-ENDIF
-	EQUB '<' OR &80, "fsp>"			;1/2(1)
-IF NOT(ultra)
-	_afsp_=2
-	_fsp_=1
+	EQUB '<' OR &80, "fsp>"			;1
 	EQUB '<' OR &80, "afsp>"		;2
-ENDIF
 	EQUB '(' OR &80, "L)"			;3
 	EQUB '<' OR &80, "source> <dest.>"	;4
 	EQUB '<' OR &80, "old fsp> <new fsp>"	;5
 	EQUB '(' OR &80, "<dir>)"		;6
-	EQUB '(' OR &80, "<drive>)"		;7(6)
+	EQUB '(' OR &80, "<drive>)"		;7
 	EQUB '<' OR &80, "title>"		;8
 IF sys=120 AND NOT(ultra)
 	EQUB '<' OR &80, "drive>"		;9
@@ -4799,13 +5049,12 @@ IF sys>120
 ENDIF
 	EQUB '4' OR &80, "0/80"			;10
 	EQUB '(' OR &80, "<drive>)..."		;11
-	EQUB '(' OR &80, "<rom>)"		;12(10)
+	EQUB '(' OR &80, "<rom>)"		;12
 ENDIF
 IF ultra					;DUTILS parameters
-	EQUS '<' OR &80, "drive>"		;13(11)
-	EQUS '<' OR &80, "dno>/<dsp>"		;14(12)
-	EQUS '<' OR &80, "dno>"			;15(13)
-	EQUS '(' OR &80, "(<from dno>) <to dno>) (<adsp>)"	;16(14)
+	EQUS '<' OR &80, "dno>/<dsp>"		;13
+	EQUS '(' OR &80, "(<f.dno>) <t.dno>) (<adsp>)"	;14
+	EQUS 'P' OR &80, "/U/N/K/R"		;15
 ENDIF
 	EQUB 255
 
@@ -4929,20 +5178,29 @@ ENDIF
 	JSR Param_SyntaxErrorIfNull
 	JSR Param_DriveNo_BadDrive
 	STA DEST_DRIVE			;Destination drive
+
 	TYA 
-	PHA 
+	PHA
+
 	LDA #&00
 	STA &A9
+
 	LDA DEST_DRIVE
 	CMP SRC_DRIVE
 	BNE gcdd_samedrive		;If not same drive
+
+IF ultra
+	\ If virtual disk report error!
+	JSR MMC_Drive_State
+	BCS baddrv
+ENDIF
 
 	LDA #&FF			;SOURCE <> DEST
 	STA &A9
 	STA &AA
 
 .gcdd_samedrive
-	JSR CalcRAM			; Calc ram available
+	JSR CalcRAM			;Calc ram available
 	JSR PrtString
 	EQUS "Copying from :"
 	LDA SRC_DRIVE
@@ -4952,12 +5210,18 @@ ENDIF
 	LDA DEST_DRIVE
 	JSR prthexLoNib
 	JSR prtNewLine
+
 	PLA
 	TAY
 	CLC
 }
+
 .isgoalready
-	RTS 
+	RTS
+
+IF ultra
+.baddrv JMP errBADDRIVE
+ENDIF
 
 .PromptInsertSourceDisk
 	JSR rememberAXY			;If ?A9 +ve = same drive
@@ -5013,6 +5277,7 @@ ENDIF
 	BCS err_ESCAPE			; If ESCAPE pressed
 }
 
+.PrintNewLine
 .prtNewLine
 	PHA 
 	LDA #&0D
@@ -5096,7 +5361,13 @@ ENDIF
 
 .backup_copy
 	JSR CopyDATABLOCK
+
+IF ultra
+	JSR LoadCurDrvCatalog
+	JMP MMC_UpdateDiskTableTitle
+ELSE
 	JMP LoadCurDrvCatalog
+ENDIF
 }
 
 .CMD_COPY
@@ -5312,7 +5583,7 @@ IF sys>120				;Moved here!
 	RTS
 ENDIF
 
-IF sys>120 or ultra
+IF sys>120 OR ultra
 	INCLUDE "filesys_newcommands.asm"
 ENDIF
 

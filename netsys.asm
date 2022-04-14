@@ -426,7 +426,7 @@
 }
 
 .NFS_SERVICE_09				; *HELP
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS 13, "NFS 3.60", 13
 
 .Label_8215
@@ -452,7 +452,7 @@
 	JSR OSBYTE			; Write key
 
 .Label_8232
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "Econet Station "
 	LDY #&14
 	LDA (ptr9CL_PWS0),Y
@@ -461,12 +461,12 @@
 	BIT ADLC_REG1
 	BEQ Label_825F
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS " No Clock"
 	NOP
 
 .Label_825F
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUB 13,13
 }
 
@@ -1312,7 +1312,7 @@
 	PLP
 	RTS
 
-.PrintString
+.nfs_PrintString
 {
 	PLA
 	STA &B0
@@ -2630,21 +2630,21 @@
 
 	LDX #&03
 	JSR Sub_8D47			; Print Directory Name
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "("
 	LDA &0F13			; Directory Cycle Number
 	JSR Sub_8DBD_PrintDecimal
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS ")     "
 	LDY &0F12
 	BNE Label_8CB0
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "Owner", 13
 	BNE Label_8CBA
 
 .Label_8CB0
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "Public", 13
 
 .Label_8CBA
@@ -2655,14 +2655,14 @@
 	LDY #&10
 	JSR Sub_8D49
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "    Option "
 
 	LDA &0E05
 	TAX
 	JSR Utils_PrintHexByte
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS " ("
 
 	LDY Data_8D54,X
@@ -2676,14 +2676,14 @@
 	BNE Loop_8CE2
 
 .Label_8CED
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS ")", 13
 	EQUS "Dir. "
 
 	LDX #&11
 	JSR Sub_8D47
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "     Lib. "
 
 	LDX #&1B
@@ -2834,7 +2834,7 @@
 	STA &B9
 	BEQ Label_8DB2
 
-	JSR PrintString
+	JSR nfs_PrintString
 	EQUS "  "
 	BNE Label_8DB7			; always
 

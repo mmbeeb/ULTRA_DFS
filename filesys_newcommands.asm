@@ -6,58 +6,68 @@
 	\ Contains the new commands:
 	\ *VERIFY
 	\ *FORM
+	\ *FREE
+	\ *MAP
 	\ *ROMS
 
 .CMD_VERIFY
 	LDA #&00			;\\\\\ *VERIFY
-	BEQ Label_A5C4_v
+	BEQ vf_Drive
 
 .CMD_FORM
 	LDA #&FF			;\\\\\ *FORM
 	STA LoadedCatDrive
 
-.Label_A5C4_v
+	\ OWCtlBlock = &1090		;16 bytes
+.vf_Drive
+{
+	attempts = OWCtlBlock+&D
+	tracks = OWCtlBlock+&F
+
 {
 	STA &C9
 	STA OWCtlBlock
-	BPL Label_A5E5			;If verifying
+	BPL label2			;If verifying
 
 	JSR Param_SyntaxErrorIfNull	;Get number of tracks (40/80)
+
 	JSR Decimal_TxtPtrToBinary
-	STA OWCtlBlock+&F
-	BCS Label_A5E2
+	STA tracks			;Number of tracks (to format)
+	BCS label1
 
-	CMP #&23
-	BEQ Label_A5E5			;If =45
+	CMP #35
+	BEQ label2			;If =35
 
-	CMP #&28
-	BEQ Label_A5E5			;If =40
+	CMP #40
+	BEQ label2			;If =40
 
-	CMP #&50
-	BEQ Label_A5E5			;If =80
+	CMP #80
+	BEQ label2			;If =80
 
-.Label_A5E2
-	JMP errSYNTAX
+.label1	JMP errSYNTAX
 
-.Label_A5E5
-	JSR GSINIT_A
-	STY &CA
+.label2	JSR GSINIT_A
+	STY &CA				;Save Y
+	BNE loop5
 
-	BNE Label_A637_driveloop
+	\ No drive param, so ask!
+
 	BIT &C9
-	BMI Label_A5FB			;IF formatting
+IF ultra				;Ultra uses bit 6
+	BVS label3
+ELSE
+	BMI label3			;If formatting
+ENDIF
 
 	JSR PrtString
 	EQUS "Verify"
-	BCC Label_A605			;always
+	BCC label4			;always
 
-.Label_A5FB
-	JSR PrtString
+.label3	JSR PrtString
 	EQUS "Format"
 	NOP 
 
-.Label_A605
-	JSR PrtString
+.label4	JSR PrtString
 	EQUS " which drive ? "
 	NOP 
 	JSR OSRDCH
@@ -71,42 +81,54 @@
 	SBC #&30
 	BCC jmp_errBadDrive
 
-	CMP #&04
+	CMP #4
 	BCS jmp_errBadDrive		;If >=4
 
-	STA CurrentDrv
+	STA ActiveDrv
 	JSR prtNewLine
 
-	LDY &CA
-	JMP Label_A63A
+	LDY &CA				;Restore Y
+	JMP label6
 
-.Label_A637_driveloop
-	JSR Param_DriveNo_BadDrive
+.loop5	JSR Param_DriveNo_BadDrive
 
-.Label_A63A
-	STY &CA
-	BIT &C9
-	BPL Label_A647			;If verifying
+.label6	STY &CA
 
-IF sys>120
-	LDX CurrentDrv
-	LDA #&00
-	STA DRIVE_MODE,X		;Reset drive mode
+IF ultra
+	ROL &C9
+	JSR MMC_ActiveDrv_State
+	ROR &C9				;Bit 7 = virtual drv flag
 ENDIF
 
-.Label_A647
+IF sys>120
+	BIT &C9
+IF ultra
+	BVC label7			;If verifying
+	BMI label7			;Or if virtual disk
+ELSE
+	BPL label7			;If verifying
+ENDIF
+
+	LDX ActiveDrv
+	LDA #&00
+	STA DRIVE_MODE,X		;Reset drive mode
+
+.label7
+ENDIF
+
+	\ Note: ?OWCtlBlock is set to drv number in vf_ActiveDrv
+	\ subroutine, :. bit 7 clear after first call.
 	BIT OWCtlBlock
-	BPL Label_A652			;If verifying or already done
+	BPL label8			;If verifying or already done
 
 	JSR IsEnabledOrGo
 	JSR CalcRAM
 
-.Label_A652
-	JSR SUB_A663
+.label8	JSR vf_ActiveDrv
 
 	LDY &CA
 	JSR GSINIT_A
-	BNE Label_A637_driveloop	;More drives?
+	BNE loop5			;More drives?
 
 	RTS
 }
@@ -117,132 +139,207 @@ ENDIF
 .jmp_errBadDrive
 	JMP errBADDRIVE
 
-.SUB_A663
+
+	\\ Verify / Format active drive
+
+	\ Virtual drive:
+	\ Drive must not be empty and
+	\ if verifying then disk must be formatted, else
+	\ if formatting then disk must be unformatted.
+.vf_ActiveDrv
 {
+
 	BIT &C9
-	BMI Label_A675			;If formatting
+IF ultra
+	BVS label1			;If formatting
+ELSE
+	BMI label1			;If formatting
+ENDIF
 
 	JSR PrtString
 	EQUS "Verifying"
-	BCC Label_A68A			;always
+	BCC label2			;always NOTE: We skip setting ?OWCtlBlock=drive;
+					;but this is done when catalogue read,
+					;i.e. when SUB_93F5_rdCatalogue_81 called.
 
-.Label_A675
-	JSR SUB_A76C_Clear_E00_FFF
+	\ Formatting
+
+.label1
+IF NOT(ultra)
+	\ For ultra we do this later, because if it's a virtual disk
+	\ we will use the catalogue memory for MMB disk table read & write to change
+	\ disk state to formatted and clear the title.
+
+	JSR vf_NewCatalogue
+ENDIF
+
 	JSR PrtString
 	EQUS "Formatting"
 
-	LDX CurrentDrv
+IF ultra
+	NOP
+ELSE
+	LDX ActiveDrv
 	STX OWCtlBlock
+ENDIF
 
-.Label_A68A
-	JSR PrtString
+.label2	JSR PrtString
 	EQUS " drive "
-	LDA CurrentDrv
+
+	LDA ActiveDrv
+IF ultra
+	STA OWCtlBlock			;Need to do this when verifying too for 1.20.
+ENDIF
 	JSR prthexLoNib
 
 	JSR PrtString
 	EQUS " track   "
 	NOP 
-	BIT &C9
-	BMI Label_A6B6			;If formatting
 
-	JSR CalcTracksOnDisk
+	BIT &C9
+IF ultra
+	BVS label4
+ELSE
+	BMI label4			;If formatting
+ENDIF
+
+	JSR vf_CalcTracksOnDisk
 	TXA 
-	BNE Label_A6B3
+	BNE label3
+
 	JMP prtNewLine
 
-.Label_A6B3
-	STA OWCtlBlock+&F		;number of tracks
+.label3	STA tracks 			;number of tracks
 
-.Label_A6B6
-	LDA #&00
+.label4	LDA #0
 	STA OWCtlBlock+7		;track
 
-.Label_A6BB_trackloop
-	LDA #&08
+.loop5	LDA #&08			;2 x backspaces
 	JSR PrtChrA
 	JSR PrtChrA
 
 	LDA OWCtlBlock+7
 	JSR PrtHexA			;print track
 
-	LDA #&06
-	STA OWCtlBlock+&D		;try up to 5 times!
+	LDA #6
+	STA attempts			;try up to 5 times!
 
-.Label_A6CE_tryloop
-	JSR SUB_A73D_setupOs7F_paramblock	;defaults to "format"
+.loop6	JSR vf_PopOWBlock		;defaults to "format"
 
 	BIT &C9
-	BPL Label_A6E2			;If verifying
+IF ultra
+	BVC label7			;If verifying
+ELSE
+	BPL label7			;If verifying
+ENDIF
 
-	JSR SUB_A788_build_sector_table
+	\ Format & verify track
+
+	JSR vf_Build_Track_Data
 
 	LDX #LO(OWCtlBlock)
 	LDY #HI(OWCtlBlock)
 	JSR Osword7F_8271_Emulation
 
 	TAX 				;A=result
-	BNE Label_A70A
+	BNE label8			;If error
 
-.Label_A6E2
-	LDA #&00			;Modify param block
+IF ultra
+	BIT &C9
+	BMI label9			;If virtual don't verify format.
+					;(The disk may be marked as unformatted,
+					;so verifying would cause a fatal error!)
+ENDIF
+
+	\ Verify track
+
+.label7	LDA #&00			;Modify param block
 	STA OWCtlBlock+8		;sector
+
+IF sys<>120
 	LDA OWCtlBlock+9
 	AND #&1F			;no.of sectors only
 	STA OWCtlBlock+9
-	LDA #&03
-	STA OWCtlBlock+5		;no.of parameters
-	LDA #&5F
-	STA OWCtlBlock+6		;8271 command 5F:
+ENDIF
 
-	JSR CheckESCAPE			;"Read data & deleted data"
+	LDA #3
+	STA OWCtlBlock+5		;no.of parameters
+
+	LDA #&5F
+	STA OWCtlBlock+6		;8271 command &5F:
+					;"Read data & deleted data"
+	JSR CheckESCAPE
 
 	LDX #LO(OWCtlBlock)
 	LDY #HI(OWCtlBlock)
 	JSR Osword7F_8271_Emulation
-	BEQ Label_A712			;If ok
+	BEQ label9			;If ok
 
-	DEC OWCtlBlock+&D
-	BNE Label_A6CE_tryloop		;Try again!
+	DEC attempts
+	BNE loop6			;Try again!
 
-.Label_A70A
-	JSR PrtString
+	\ Format error, or too many verify errors.
+
+.label8	JSR PrtString
 	EQUS "?"
 	NOP 
 	JMP FDC_ReportDiskFault_A_fault	;Fatal
 
-.Label_A712
-	LDA OWCtlBlock+&D
-	CMP #&06
-	BEQ Label_A721			;If no error(s) occurred
+.label9	LDA attempts
+	CMP #6
+	BEQ label10			;If no error(s) occurred
 
 	JSR PrtString
 	EQUS "?   " 
 	NOP 
 
-.Label_A721
-	BIT &C9
-	BPL Label_A728			;If verifying
-	JSR SUB_A779_seccount__10
+.label10
 
-.Label_A728
-	INC OWCtlBlock+7		;track
+IF NOT(ultra)
+	BIT &C9
+	BPL label11			;If verifying
+
+	JSR vf_AddSectors		;Sector count +=10
+
+.label11
+ENDIF
+
+	INC OWCtlBlock+7		;next track
 	LDA OWCtlBlock+7
-	CMP OWCtlBlock+&F		;more tracks?
-	BNE Label_A6BB_trackloop
+	CMP tracks			;more tracks?
+	BNE loop5
+
+	\ No more tracks to format/verify.
 
 	BIT &C9
-	BPL Label_A73A			;If verifying
+IF ultra
+	BVC label12			;If verifying
+	BPL lab_4			;If real
 
-	JSR SaveCatToDisk_DontIncCycleNo	;Write new catalogue
+	JSR MMC_DiskFormatted		;Mark disk as formatted, and clear title.
 
-.Label_A73A
+.lab_4
+	JSR vf_NewCatalogue
+
+ELSE
+	BPL label12			;If verifying
+ENDIF
+
+	\ Finish formatting by writing blank catalogue.
+
+	JSR SaveCatToDisk_DontIncCycleNo	;Write blank catalogue
+
+.label12
 	JMP prtNewLine
 }
 
-.SUB_A73D_setupOs7F_paramblock
+
+	\ Populate OSWORD control block.
+	\ (Default values are for formatting.)
+.vf_PopOWBlock
+IF NOT(ultra)
 	LDX #&00			;Setup parameter block
-	STX OWCtlBlock+1		;Load address = &FFFFxx00
+	STX OWCtlBlock+1		;Data address = &FFFFxx00
 	STX OWCtlBlock+&A		;Gap 5 size (bytes)
 	DEX 
 	STX OWCtlBlock+3
@@ -256,49 +353,90 @@ ENDIF
 	LDA #&2A			;001-01010  1-10
 	STA OWCtlBlock+9		;Size/No.of sectors (1=256,10/trk)
 	LDX #&10
-	LDY #&13
+	LDY #&13			;Note: Disc based format command has Gap 3 = &10
 	STX OWCtlBlock+&B		;Gap 1 size (bytes)
 	STY OWCtlBlock+8		;Gap 3 size (bytes)
-	RTS
-
-.SUB_A76C_Clear_E00_FFF
+	RTS ;11*3+6*2+1=44
+ELSE
 {
-	LDA #&00			;Clear Cat
+	LDX #11
+
+.loop1	CPX #7
+	BEQ label2			;Don't overwrite track number.
+
+	LDA data3-1,X
+	STA OWCtlBlock,X
+
+.label2	DEX
+	BNE loop1
+
+	LDA PAGE
+	STA OWCtlBlock+2
+	RTS ;4*3+4*2+1+11=32
+
+.data3	EQUB &00, &00, &FF, &FF, &05, &63, &00, &13, &2A, &00, &10
+}
+ENDIF
+
+
+.vf_NewCatalogue
+{
+	LDA #&00
 	TAY 
 
-.Label_A76F
-	STA swsp+&0E00,Y
+.loop1	STA swsp+&0E00,Y
 	STA swsp+&0F00,Y
 	INY 
-	BNE Label_A76F
+	BNE loop1
 
-	RTS
-}
+IF ultra
+	LDY tracks			; Pop number of sectors
 
-.SUB_A779_seccount__10
-{
-	LDA #&0A			;Cat Sector Count +=10
-	CLC 
+.loop2	LDA #&0A
+	CLC
 	ADC swsp+&0F07
 	STA swsp+&0F07
-	BCC Label_A787
+	BCC label3
 
 	INC swsp+&0F06
 
-.Label_A787
+.label3	DEY
+	BNE loop2
+ENDIF 
+
 	RTS
 }
 
-.SUB_A788_build_sector_table
+IF NOT(ultra)
+	\\ Catalogue Sector Count +=10
+.vf_AddSectors
+{
+	LDA #&0A
+	CLC 
+	ADC swsp+&0F07
+	STA swsp+&0F07
+	BCC label1
+
+	INC swsp+&0F06
+
+.label1	RTS
+}
+ENDIF
+
+	\\ Build the data to be written to track (FORMAT)
+	\\ First byte at PAGE.
+.vf_Build_Track_Data
 {
 	LDA #&00			;SECTOR IDs for Formatting
 	STA &B0				;B0 -> PAGE
 	LDA PAGE
 	STA &B1
+
 	LDA #&0A
 	STA &B2				;B2 = loop counter
+
 	LDA OWCtlBlock+7		;track
-	BEQ Label_A7A4			;IF track=0
+	BEQ label1			;IF track=0
 
 	LDY #&02
 	LDA (&B0),Y
@@ -306,12 +444,10 @@ ENDIF
 	ADC #&07			;stagger sector?
 	JSR SUB_A7C5_X_A_MOD_10
 
-.Label_A7A4
-	TAX 				;X=sector
+.label1	TAX 				;X=sector
 	LDY #&00
 
-.Label_A7A7_loop
-	LDA OWCtlBlock+7		;track
+.loop2	LDA OWCtlBlock+7		;track
 	STA (&B0),Y
 	INY 
 	LDA #&00			;0
@@ -326,10 +462,11 @@ ENDIF
 	INX 
 	JSR SUB_A7C4_X_X_MOD_10
 	DEC &B2
-	BNE Label_A7A7_loop
+	BNE loop2
 
 	RTS
 }
+
 
 .SUB_A7C4_X_X_MOD_10
 	TXA 
@@ -338,23 +475,25 @@ ENDIF
 {
 	SEC 
 
-.Label_A7C6_loop
-	SBC #&0A
-	BCS Label_A7C6_loop
+.loop1	SBC #&0A
+	BCS loop1
 
 	ADC #&0A
 	TAX 
 	RTS
 }
 
-	\ Only called when verifying disc.
-.CalcTracksOnDisk
+
+	\ Calc nor of tracks on disk (VERIFY)
+	\ Exit: X=number of tracks
+.vf_CalcTracksOnDisk
 {
-if sys=120
+IF sys=120
 	JSR LoadCurDrvCatalog
-else
+ELSE
 	JSR SUB_93F5_rdCatalogue_81	;Load catalogue
-endif
+ENDIF
+
 	LDA swsp+&0F06			;Size of disk
 	AND #&03
 	TAX 
@@ -363,29 +502,29 @@ endif
 	STY &B0
 	LDY #&FF			;Calc number of tracks
 
-.Label_A7E0_loop
-	SEC 
+.loop1	SEC 
 
-.Label_A7E1_loop
-	INY 
+.loop2	INY 
 	SBC &B0
-	BCS Label_A7E1_loop
+	BCS loop2
 
 	DEX 
-	BPL Label_A7E0_loop
+	BPL loop1
+
 	ADC &B0
 	PHA 
 	TYA 
 	TAX 
 	PLA 
-	BEQ Label_A7F2
+	BEQ label3
 
 	INX 
 
-.Label_A7F2
-	RTS
+.label3	RTS
 }
+};End of verify/format routines
 
+IF NOT(ultra)
 .CMD_FREE
 	SEC 				;\\\\\\\\\ *FREE
 	BCS Label_A7F7
@@ -686,8 +825,9 @@ endif
 .PrintNibble
 	JSR prthexnibcalc
 	JMP OSASCI
+ENDIF
 
-if sys<>224
+IF sys<>224 ;AND NOT(ultra)
 .CMD_ROMS
 {
 	LDA #&00			; *ROMS (<rom>)
@@ -898,7 +1038,8 @@ if sys<>224
 	STA swsp+&0107,X
 	RTS
 }
-endif
+ENDIF
+
 
 \\ End of file
 

@@ -3,11 +3,11 @@
 	\\ Compiler: BeebAsm V1.08
 	\\ Disassembly by Martin Mather
 
-	_MMC_DEVICE_ = 'M'
+	_MMC_DEVICE_ = 'U'
 
 	sys=226
 	ultra = TRUE
 
 	INCLUDE "dfs.asm"
 
-	SAVE "ULTRA226.ROM", &8000, &C000
+	SAVE "U226UP.ROM", &8000, &C000

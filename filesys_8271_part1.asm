@@ -115,19 +115,25 @@
 	JSR rememberAXY
 	LDY #&46			;X value doesn't matter
 
-.Idel_LOOP
-	DEX
-	BNE Idel_LOOP
+.loop	DEX
+	BNE loop
 
 	DEY
-	BNE Idel_LOOP
-
-	RTS
+	BNE loop
 }
+
+.fdcexitsetcurdrv
+	RTS
 
 .FDC_SetToCurrentDrv
 {
-	JSR rememberAXY
+	JSR RememberAXY
+
+IF ultra
+	JSR MMC_ActiveDrv_State
+	BCS fdcexitsetcurdrv		;If it's a virtual drive.
+ENDIF
+
 	LDA CurrentDrv
 	TAY
 	CMP IsDriveReady
@@ -158,11 +164,16 @@
 .fdc_waituntilbusy
 	JSR FDC_DriveReady		;Current drive ready, exit C=drive
 	BNE WaitForBusyDrive		;Branch if drive not ready
+
 	PHP
 	CLI				;Enable interrupts!
 	PLP
+
 	BIT &FF				;Check if ESCAPE pressed
 	BPL fdc_waituntilbusy		;If NO ESCAPE
 
 	JSR FDC_Reset
+
+	;JMP reportESCAPE
 }
+
